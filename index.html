@@ -5,6 +5,30 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>💌برای شما عشقم</title>
   <style>
+    /* Mini player */
+    .mini-player {
+      position: sticky;      
+      bottom: 0;
+      margin-top: 16px;
+      background: #fff0f6;
+      border: 2px solid #ff99cc;
+      border-radius: 14px;
+      box-shadow: 0 6px 20px rgba(255,105,180,.15);
+      padding: 10px 12px;
+      max-width: 480px;
+    }
+    .mini-row { display: flex; align-items: center; gap: 10px; }
+    .mini-title { font-weight: 700; color: #ff4da6; font-size: .95rem; flex: 1; min-width: 0; }
+    .mini-title span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: inline-block; max-width: 100%; }
+    .mini-btn {
+      width: 36px; height: 36px; display: grid; place-items: center;
+      border: none; border-radius: 50%; background: #ff99cc; color: #fff;
+      cursor: pointer; font-size: 1.05rem; transition: transform .1s, background .2s;
+    }
+    .mini-btn:hover { transform: scale(1.06); background: #ff66b2; }
+    .mini-vol { width: 140px; accent-color: #ff4da6; }
+    .mini-small { color: #cc6699; font-size: .8rem; }
+
     :root {
       --bg: #fff5f7;
       --card: #ffffff;
@@ -144,6 +168,26 @@
         <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRVZ3HJIEI3yFErnUqfQFdacOgQjFz4hefcxA&s" alt="How I see you" />
       </div>
 
+      <!-- Mini Music Player -->
+      <div class="mini-player">
+        <!-- Hidden audio element -->
+        <audio id="bg-music" preload="metadata" muted playsinline></audio>
+
+        <div class="mini-row" style="margin-bottom:6px;">
+          <div class="mini-title">🎵 <span id="mp-title">—</span></div>
+          <button class="mini-btn" id="mp-prev" title="Prev">⏮️</button>
+          <button class="mini-btn" id="mp-play" title="Play/Pause">▶️</button>
+          <button class="mini-btn" id="mp-next" title="Next">⏭️</button>
+        </div>
+
+        <div class="mini-row">
+          <span class="mini-small" id="mp-status">Paused 💔</span>
+          <div style="flex:1"></div>
+          <input class="mini-vol" type="range" id="mp-vol" min="0" max="1" step="0.01" value="0.6">
+          <span class="mini-small" id="mp-time">0:00 / 0:00</span>
+        </div>
+      </div>
+
       <h2 style="margin-top:18px">Little quiz/game</h2>
       <p class="muted">A few fun questions — HIGH pressure, GET IT ALL RIGHT! 😊</p>
       <div id="quiz" class="quiz q-card">
@@ -156,7 +200,6 @@
         </div>
       </div>
 
-      <!-- FINAL PAGE (hidden until triggered) -->
       <div id="final" class="card">
       <h2 class="center">Final surprise ✨</h2>
       <p class="center muted">Here is my heart for you Laila! (Very difficult to make btw) </p>
@@ -355,7 +398,86 @@
         qOpts.appendChild(b);
       });
     }
+    
+    // ===== Mini Music Player =====
+    (function(){
+      // If your songs are in Gift/music/, these relative paths are correct:
+      const playlist = [
+        { src: "music/ThisGirl.mp3",   title: "This Girl is Mine — Michael Jackson & Paul McCartney" },
+        { src: "music/Understand.mp3", title: "Understand — Keshi" },
+        { src: "music/SoNosDois.mp3",  title: "Só Nós Dois — Tim Bernardes" }
+      ];
 
+      const audio = document.getElementById("bg-music");
+      const titleEl = document.getElementById("mp-title");
+      const statusEl = document.getElementById("mp-status");
+      const timeEl = document.getElementById("mp-time");
+      const btnPrev = document.getElementById("mp-prev");
+      const btnPlay = document.getElementById("mp-play");
+      const btnNext = document.getElementById("mp-next");
+      const vol = document.getElementById("mp-vol");
+
+      if (!audio) return; // safety if block not present
+
+      let i = 0;
+      let userGesture = false;
+
+      // Persist volume
+      const saved = localStorage.getItem("mini.vol");
+      audio.volume = saved ? Number(saved) : Number(vol.value);
+      if (saved) vol.value = saved;
+
+      function fmt(t){
+        t = Math.max(0, t|0);
+        const m = (t/60)|0, s = (t%60)|0;
+        return `${m}:${s.toString().padStart(2,'0')}`;
+      }
+
+      function updateTime(){
+        const cur = audio.currentTime||0, dur = audio.duration||0;
+        timeEl.textContent = `${fmt(cur)} / ${isFinite(dur)?fmt(dur):"0:00"}`;
+      }
+
+      function setStatus(){
+        const playing = !audio.paused && !audio.ended;
+        statusEl.textContent = playing ? "Playing 💞" : "Paused 💔";
+        btnPlay.textContent = playing ? "⏸️" : "▶️";
+      }
+
+      function load(n, {autoplay=false} = {}){
+        i = (n + playlist.length) % playlist.length;
+        const tr = playlist[i];
+        audio.src = tr.src;
+        audio.load();
+        titleEl.textContent = tr.title;
+        setStatus(); updateTime();
+        if (autoplay && userGesture) {
+          audio.muted = false;
+          audio.play().catch(()=>{});
+        }
+      }
+
+      // Controls
+      btnPlay.addEventListener("click", ()=>{
+        userGesture = true;
+        if (audio.paused) { audio.muted = false; audio.play().catch(()=>{}); }
+        else { audio.pause(); }
+        setStatus();
+      });
+      btnPrev.addEventListener("click", ()=>{ userGesture = true; load(i-1, {autoplay:true}); });
+      btnNext.addEventListener("click", ()=>{ userGesture = true; load(i+1, {autoplay:true}); });
+      vol.addEventListener("input", ()=>{ audio.volume = Number(vol.value); localStorage.setItem("mini.vol", vol.value); });
+
+      // Events
+      audio.addEventListener("timeupdate", updateTime);
+      audio.addEventListener("loadedmetadata", updateTime);
+      audio.addEventListener("play", setStatus);
+      audio.addEventListener("pause", setStatus);
+      audio.addEventListener("ended", ()=> load(i+1, {autoplay:true}));
+
+      // First load
+      load(0);
+    })();
     function choose(idx, btnEl){
       if(locked) return;
       locked = true;
